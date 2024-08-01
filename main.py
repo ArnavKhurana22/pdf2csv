@@ -7,11 +7,22 @@ from configparser import ConfigParser
 import pathlib
 import csv
 from io import BytesIO
-from dotenv import load_dotenv
 import google.generativeai as genai
+from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
+
+# Set up the API key
+api_key = os.getenv("GEMINI_API_KEY")
+if api_key is None:
+    st.error("API key not found. Please check your .env file.")
+    st.stop()  # Stop execution if API key is not available
+
+genai.configure(api_key=api_key)
+
+# Initialize the model
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Load configuration
 def load_config():
@@ -23,8 +34,13 @@ def load_config():
 
 # Get path of source
 def get_path_of_source(filename):
-    p = pathlib.Path(filename)
-    return p
+    return pathlib.Path(filename)
+
+# Test if paths are correctly loaded
+def test_paths():
+    popplerLoc, tesseractLoc = load_config()
+    st.write(f"Poppler Path: {popplerLoc}")
+    st.write(f"Tesseract Path: {tesseractLoc}")
 
 # Step 1: PDF to JPG
 def pdf_to_jpg(pdf_bytes, firstpage, lastpage, userpw, popplerLoc):
@@ -57,51 +73,43 @@ def jpg_to_txt(tesseractLoc, jpg_files):
 
 # Step 3: TXT to CSV
 def txt_to_csv(txt_files):
-    ConvertedfileAsList = []
+    converted_list = []
     for txt_file in txt_files:
         with open(txt_file) as fileToRead:
-            x = fileToRead.readlines()
-        for i in x:
-            without_comma = i.replace(",", "")
-            with_our_added_commas = without_comma.replace(" ", ",")
-            strings_without_inverted_commas = with_our_added_commas.replace("\"", "")
-            ConvertedfileAsList.append(strings_without_inverted_commas)
-    return ConvertedfileAsList
+            lines = fileToRead.readlines()
+        for line in lines:
+            without_comma = line.replace(",", "")
+            with_added_commas = without_comma.replace(" ", ",")
+            cleaned_line = with_added_commas.replace("\"", "")
+            converted_list.append(cleaned_line)
+    return converted_list
 
 def save_as_csv(data, filename):
     filename = get_path_of_source(filename).with_suffix('.csv')
     st.write(f"Converted to CSV...Saving to: {filename}")
-    with open(filename, 'w') as fout:
-        for entry in data:
-            fout.write(entry)
-    return filename  # Return the path of the saved CSV file
-
-# Set up Gemini AI
-def get_api_key():
-    return os.environ.get("GEMINI_API_KEY")
+    with open(filename, 'w', newline='') as fout:
+        fout.writelines(data)  # Write each line in the data list
+    return filename
 
 def analyze_csv_with_gemini(csv_content):
-    api_key = get_api_key()
-    if not api_key:
-        st.error("API key not found. Please set the GEMINI_API_KEY environment variable.")
-        return
-
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-
-    # Example: Asking Gemini AI to summarize the content
-    prompt = f"Analyze the following CSV data and extract details along with the selected checkboxes:\n{csv_content}"
-    
+    prompt = f"Analyze the following CSV data:\n{csv_content}"
     try:
-        response = model.generate(prompt)
-        return response
+        # Use the model to generate a response
+        response = model.generate_content(prompt=prompt)  # Adjust method and params as needed
+        return response.get('text', 'No response text found')
+    except TypeError as e:
+        st.error(f"TypeError: {e}")
+        return "A TypeError occurred."
+    except AttributeError as e:
+        st.error(f"AttributeError: {e}")
+        return "An AttributeError occurred."
     except Exception as e:
-        st.error(f"An error occurred while analyzing the CSV with Gemini AI: {e}")
-        return None
+        st.error(f"An unexpected error occurred: {e}")
+        return "An unexpected error occurred."
 
 def main():
-    st.title("PDF to CSV Converter with AI Analysis")
-    st.write("This application converts PDF files to CSV format in three steps and analyzes the CSV using Gemini AI:")
+    st.title("PDF to CSV Converter")
+    st.write("This application converts PDF files to CSV format in three steps:")
     st.write("Step 1: PDF to JPG")
     st.write("Step 2: JPG to TXT")
     st.write("Step 3: TXT to CSV")
@@ -132,12 +140,10 @@ def main():
             st.write("CSV Data:")
             st.write(csv_content)  # Display CSV content directly
 
-            # Analyze CSV with Gemini AI
-            st.write("Analyzing CSV with Gemini AI...")
+            # Analyze CSV content with Gemini
             analysis_result = analyze_csv_with_gemini(csv_content)
-            if analysis_result:
-                st.write("Analysis Result:")
-                st.write(analysis_result)
+            st.write("Analysis Result:")
+            st.write(analysis_result)
 
 if __name__ == '__main__':
     main()

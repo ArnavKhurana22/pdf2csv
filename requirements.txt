@@ -1,0 +1,9 @@
+streamlit
+pytesseract
+poppler
+Pillow
+pdf2image
+configparser
+pathlib
+python-dotenv
+google-generativeai
