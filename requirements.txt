@@ -1,4 +1,5 @@
 streamlit
+tesseractOCR
 pytesseract
 poppler
 Pillow
@@ -7,3 +8,4 @@ configparser
 pathlib
 python-dotenv
 google-generativeai
+pandas
